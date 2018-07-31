@@ -36,7 +36,7 @@
 
 #include <linux/cpu.h>
 #ifdef USE_LCD_NOTIFIER
-#include <linux/lcd_notify.h>
+#include <linux/display_state.h>
 #endif /* USE_LCD_NOTIFIER */
 #include <linux/cpufreq.h>
 #if defined(CONFIG_HAS_EARLYSUSPEND) && !defined(DISABLE_POWER_MANAGEMENT)
@@ -475,10 +475,6 @@ static unsigned int fast_scaling_down_asleep;			// Yank: for setting fast scalin
 static unsigned int disable_hotplug_asleep;			// ZZ: for setting hotplug on/off at early suspend
 #endif /* ENABLE_HOTPLUGGING */
 #endif /* (defined(CONFIG_HAS_EARLYSUSPEND)... */
-
-#if defined(USE_LCD_NOTIFIER) && !defined(CONFIG_POWERSUSPEND)
-static struct notifier_block zzmoove_lcd_notif;
-#endif /* defined(USE_LCD_NOTIFIER)... */
 
 #ifdef ENABLE_INPUTBOOSTER
 // ff: Input Booster variables
@@ -9042,30 +9038,24 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 static int zzmoove_lcd_notifier_callback(struct notifier_block *this,
 								unsigned long event, void *data)
 {
-	switch (event)
-	{
-		case LCD_EVENT_OFF_END:
+	bool display_on = is_display_on();
 
+	if (!display_on)
+	{
 			if (!suspend_flag)
 			    zzmoove_suspend();
 #ifdef ZZMOOVE_DEBUG
 			pr_info("[zzmoove/lcd_notifier] Screen switched off.\n");
 #endif /* ZZMOOVE_DEBUG */
-			break;
-
-		case LCD_EVENT_ON_START:
-
+	} else {
 			if (suspend_flag)
 			    zzmoove_resume();
 #ifdef ZZMOOVE_DEBUG
 			pr_info("[zzmoove/lcd_notifier] Screen switched on.\n");
 #endif /* ZZMOOVE_DEBUG */
-			break;
-
-		default:
-			break;
 	}
-return 0;
+
+	return 0;
 }
 #endif /* (defined(USE_LCD_NOTIFIER) */
 
@@ -9113,14 +9103,6 @@ static int __init cpufreq_gov_dbs_init(void)						// ZZ: idle exit time handling
     INIT_WORK(&hotplug_online_work, hotplug_online_work_fn);				// ZZ: init hotplug online work
 #endif /* ENABLE_HOTPLUGGING */
 
-#if (defined(USE_LCD_NOTIFIER) && !defined(CONFIG_POWERSUSPEND))
-	// AP: register callback handler for lcd notifier
-	zzmoove_lcd_notif.notifier_call = zzmoove_lcd_notifier_callback;
-	if (lcd_register_client(&zzmoove_lcd_notif) != 0) {
-		pr_err("%s: Failed to register lcd callback\n", __func__);
-		return -EFAULT;
-	}
-#endif /* (defined(USE_LCD_NOTIFIER)... */
 	return cpufreq_register_governor(&cpufreq_gov_zzmoove);
 }
 
@@ -9131,10 +9113,6 @@ static void __exit cpufreq_gov_dbs_exit(void)
 #ifdef ENABLE_WORK_RESTARTLOOP
 	destroy_workqueue(dbs_aux_wq);
 #endif /* ENABLE_WORK_RESTARTLOOP */
-
-#if (defined(USE_LCD_NOTIFIER) && !defined(CONFIG_POWERSUSPEND))
-	lcd_unregister_client(&zzmoove_lcd_notif);
-#endif /* (defined(USE_LCD_NOTIFIER)... */
 }
 
 MODULE_AUTHOR("Zane Zaminsky <cyxman@yahoo.com>");
